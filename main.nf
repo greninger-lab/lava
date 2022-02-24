@@ -89,7 +89,9 @@ if(params.RAVA=='false') {
  * Import the processes used in this workflow
  */
 
-include { CreateGFF_Genbank_RAVA }from './Modules.nf'
+include { CreateGff_Genbank_RAVA }from './Modules.nf'
+include { CreateGff_RAVA } from './Modules.nf'
+include { CreateGFF_Genbank }from './Modules.nf'
 include { CreateGFF } from './Modules.nf'
 include { Alignment_prep } from './Modules.nf'
 include { Align_samples } from './Modules.nf' 
@@ -184,7 +186,7 @@ workflow {
         )   
     }
     else {
-        CreateGFF ( 
+        CreateGff_RAVA ( 
             params.GENBANK,
             PULL_ENTREZ,
             WRITE_GFF,
@@ -193,11 +195,11 @@ workflow {
         )
         
         Alignment_prep ( 
-            CreateGFF.out[0],
-            CreateGFF.out[1],
-            CreateGFF.out[2],
-            CreateGFF.out[3],
-            CreateGFF.out[4]
+            CreateGff_RAVA.out[0],
+            CreateGff_RAVA.out[1],
+            CreateGff_RAVA.out[2],
+            CreateGff_RAVA.out[3],
+            CreateGff_RAVA.out[4]
         )   
     }
 
@@ -261,32 +263,28 @@ workflow {
                 CreateGFF_Genbank.out[0],
                 CreateGFF_Genbank.out[1],
                 CreateGFF_Genbank.out[2],
-                CreateGFF_Genbank.out[3],
                 CreateGFF_Genbank.out[4],
                 CreateGFF_Genbank.out[5]
             )
 
         }
         else {
-            if(params.FASTA == 'false') {
-                CreateGFF ( 
-                params.GENBANK, 
-                CONTROL_FASTQ,
-                PULL_ENTREZ,
-                WRITE_GFF,
-                CreateGFF_Genbank.out[6],
-                CreateGFF_Genbank.out[7]
-                )
-            } else {
-                CreateGFF ( 
+            CreateGFF ( 
                 params.GENBANK, 
                 CONTROL_FASTQ,
                 PULL_ENTREZ,
                 WRITE_GFF,
                 file(params.FASTA),
                 file(params.GFF)
-                )
-            }
+            )
+
+            Alignment_prep ( 
+                CreateGFF.out[0],
+                CreateGFF.out[1],
+                CreateGFF.out[2],
+                CreateGFF.out[4],
+                CreateGFF.out[5]
+            )
         }
     }
 }

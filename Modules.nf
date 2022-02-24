@@ -1,4 +1,4 @@
-process CreateGFF_Genbank_RAVA { 
+process CreateGff_Genbank_RAVA { 
     container "quay.io/vpeddu/lava_image:latest"
 
 	// Retry on fail at most three times 
@@ -27,8 +27,7 @@ process CreateGFF_Genbank_RAVA {
     """
 }
 
-// Uses accession number specified by --GENBANK to create our own GFF (lava_ref.gff) for a consensus fasta
-// generated from the alignment of "Passage 0" sample to reference fasta.
+// Uses accession number specified by --GENBANK to create our own GFF
 process CreateGFF_Genbank { 
     container "quay.io/vpeddu/lava_image:latest"
 
@@ -78,9 +77,7 @@ process CreateGFF_Genbank {
     """
 }
 
-// Uses accession number specified by --GENBANK to create our own GFF (lava_ref.gff) for a consensus fasta
-// generated from the alignment of "Passage 0" sample to reference fasta.
-process CreateGFF { 
+process CreateGff_RAVA { 
     container "quay.io/vpeddu/lava_image:latest"
 
 	// Retry on fail at most three times 
@@ -117,6 +114,62 @@ process CreateGFF {
 
     """
 }
+
+process CreateGFF { 
+    container "quay.io/vpeddu/lava_image:latest"
+
+	// Retry on fail at most three times 
+    errorStrategy 'retry'
+    maxRetries 1
+	
+    input:
+      val(GENBANK)
+      file CONTROL_FASTQ
+	  file PULL_ENTREZ
+	  file WRITE_GFF
+	  file FASTA
+	  file GFF
+
+    output: 
+      file "lava_ref.fasta"
+      file "consensus.fasta"
+      file "lava_ref.gff"
+	  file "CONTROL.fastq"
+	  file "ribosomal_start.txt"
+	  file "mat_peptides.txt"
+
+    script:
+    """
+    #!/bin/bash
+    
+	set -e 
+	echo ${CONTROL_FASTQ}
+    
+	grep -v "mature_peptide" ${GFF} > lava_ref.gff
+	grep "mature_peptide" ${GFF} | sed "s/,mature_peptide//g" > mat_peptides.txt
+	mv ${FASTA} lava_ref.fasta
+	#mv ${GFF} lava_ref.gff
+	#Creates empty txt file
+	touch ribosomal_start.txt
+	#touch mat_peptides.txt
+	cp lava_ref.fasta consensus.fasta
+	# Indexes and aligns "Sample 0" fastq to reference fasta
+    /usr/local/miniconda/bin/bwa index lava_ref.fasta
+    /usr/local/miniconda/bin/bwa mem -t ${task.cpus} -M lava_ref.fasta ${CONTROL_FASTQ} | /usr/local/miniconda/bin/samtools view -Sb - > aln.bam
+	# Generates new consensus fasta from aligned "Sample 0" and reference fasta.
+	/usr/local/miniconda/bin/samtools sort -@ ${task.cpus} aln.bam -o aln.sorted.bam 
+    /usr/local/miniconda/bin/bcftools mpileup --max-depth 500000 -P 1.1e-100 -Ou -f lava_ref.fasta aln.sorted.bam | /usr/local/miniconda/bin/bcftools call -m -Oz -o calls.vcf.gz 
+    /usr/local/miniconda/bin/tabix calls.vcf.gz
+    gunzip calls.vcf.gz 
+    /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0)' calls.vcf -o calls2.vcf
+    /usr/local/miniconda/bin/bgzip calls2.vcf
+    /usr/local/miniconda/bin/tabix calls2.vcf.gz 
+    cat lava_ref.fasta | /usr/local/miniconda/bin/bcftools consensus calls2.vcf.gz > consensus.fasta
+	 # Avoiding filename collision during run_pipeline process 
+	 mv ${CONTROL_FASTQ} CONTROL.fastq
+    """
+}
+
 
 // Prep for downstream steps.
 // Indexes and prepares consensus fasta, and generates prerequisite files for Annovar.
@@ -309,7 +362,7 @@ process Extract_variants {
 	/usr/local/miniconda/bin/samtools flagstat !{BAM} | \
 	awk 'NR==1{printf $1","} NR==5{printf $1","} NR==5{print substr($5,2)}' >> reads.csv
 	#awk -F":" '($26+0)>=1{print}' !{EXONICVARIANTS}> !{R1}.txt
-	cp !{EXONICVARIANTS} variants.txt
+	grep -v "UNKNOWN" !{EXONICVARIANTS} > variants.txt
 
     # Sorts by beginning of mat peptide
     sort -k2 -t, -n mat_peptides.txt > a.tmp && mv a.tmp mat_peptides.txt

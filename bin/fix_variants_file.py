@@ -68,6 +68,9 @@ def find_new_nts(aa_nts, list_of_snpids, first_nt_pos):
 
 def find_aa_ref(protein,residue):
 	rel_gene = gene_info.loc[gene_info['gene_name'] == protein]
+
+	if(residue > len(rel_gene['aa_seq'].values[0])):
+		return "?"
 	return rel_gene['aa_seq'].values[0][residue-1]
 
 def find_passage(metadata, file_name):

@@ -308,8 +308,8 @@ if __name__ == '__main__':
 	plot_title = args.ptitle.split('/')[-1]
 
 	TOOLTIPS = [
-		("Amino Acid Change", "@AminoCorrect"),
-		("Nucleotide Change", "@NucCorrect"),
+		("Amino Acid Change", "@Change"),
+		("Nucleotide Change", "@NucleotideChange"),
 		("Allele Frequency", "@AF"+"%"),
 		("Depth", "@Depth"),
 		("Mature Peptide Change", "@MatPeptide")

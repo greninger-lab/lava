@@ -349,6 +349,7 @@ if __name__ == '__main__':
 		# We don't want to bother with super low-frequency variants
 		filtered_group = group.loc[group['AF'] >= 0.05]
 		filtered_group = group.loc[group['AASUB']!= "-"]
+		filtered_group = group.loc[group['AASUB']!= "fs"]
 		if filtered_group.shape[0] > 1:
 			filtered_group = filtered_group.sort_values(['AF'], ascending=False)
 			for i in range(len(filtered_group.index) - 1):

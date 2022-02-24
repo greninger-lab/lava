@@ -362,7 +362,7 @@ if __name__ == '__main__':
 				# the given mutation at i that are within 5% frequency.
 				while(j < len(filtered_group.index) and filtered_group.iloc[i]['AF'] - filtered_group.iloc[j]['AF'] <=0.05):
 					compare_nuc = filtered_group.iloc[j]["Position"]
-					if given_nuc != compare_nuc and "ins" not in filtered_group.iloc[j]['snpid']:
+					if given_nuc != compare_nuc and "ins" not in filtered_group.iloc[j]['NucleotideChange']:
 						list_to_combine = list_to_combine.append(filtered_group.iloc[j])
 
 					j+=1

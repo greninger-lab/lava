@@ -123,7 +123,7 @@ if __name__ == '__main__':
 			
 			type = line.split("\t")[1]
 
-			if(af >= 0.01 and type!="synonymous SNV" and len(line.split("\t")[6])<400 and "wholegene" not in line.split("\t")[2]):
+			if(af >= 0.01 and len(line.split("\t")[6])<400 and "wholegene" not in line.split("\t")[2]):
 				line_parts = line.split("\t")
 				nuc_ref = (line_parts[6])
 				nuc_alt = (line_parts[7])

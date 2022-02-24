@@ -348,8 +348,8 @@ if __name__ == '__main__':
 	for name,group in df.groupby(["Protein","AAPOS"]):
 		# We don't want to bother with super low-frequency variants
 		filtered_group = group.loc[group['AF'] >= 0.05]
-		filtered_group = group.loc[group['AASUB']!= "-"]
-		filtered_group = group.loc[group['AASUB']!= "fs"]
+		filtered_group = filtered_group.loc[group['AASUB']!= "-"]
+		filtered_group = filtered_group.loc[group['AASUB']!= "fs"]
 		if filtered_group.shape[0] > 1:
 			filtered_group = filtered_group.sort_values(['AF'], ascending=False)
 			for i in range(len(filtered_group.index) - 1):
@@ -362,7 +362,7 @@ if __name__ == '__main__':
 				# the given mutation at i that are within 5% frequency.
 				while(j < len(filtered_group.index) and filtered_group.iloc[i]['AF'] - filtered_group.iloc[j]['AF'] <=0.05):
 					compare_nuc = filtered_group.iloc[j]["Position"]
-					if given_nuc != compare_nuc and "ins" not in filtered_group.iloc[j]['NucleotideChange']:
+					if given_nuc != compare_nuc:
 						list_to_combine = list_to_combine.append(filtered_group.iloc[j])
 
 					j+=1
@@ -388,6 +388,7 @@ if __name__ == '__main__':
 					aa_nts = rel_gene['nt_seq'].values[0][nt_pos_in_gene-3:nt_pos_in_gene]
 					
 					# Grab new changes
+					print(aa_nts)
 					new_nts = find_new_nts(aa_nts,(list(list_to_combine["NucleotideChange"])), first_nt_pos)
 					new_aa = translate(new_nts)
 					new_snpid = aa_nts + str(first_nt_pos) + new_nts 
@@ -422,8 +423,9 @@ if __name__ == '__main__':
 	values = ["complex","synonymous SNV","stoploss","stopgain","frameshift","deletion","insertion","nonsynonymous SNV"]
 
 	df['Syn'] = np.select(conditions,values)
-	df['MatPeptide'] = df['nsp'] + ": " + df['NSPSUB'] + df['NSPPOS'] + df['NSPREF']
+	df['MatPeptide'] = df['nsp'] + ": " + df['NSPREF'] + df['NSPPOS'].astype(str) + df['NSPSUB']
 	df.loc[df.nsp=="-", "MatPeptide"] = "-"
+	df['MatPeptide'] = df['MatPeptide'].str.replace(r'.0','')
 
 	df = df.drop(columns=['AAPOS','AAREF','AASUB','VCOV','NSPSUB','NSPPOS','NSPREF','nsp'])
 

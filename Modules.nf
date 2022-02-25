@@ -27,8 +27,8 @@ process CreateGff_Genbank_RAVA {
     """
 }
 
-// Uses accession number specified by --GENBANK to create our own GFF
-process CreateGFF_Genbank { 
+// Pulls --GENBANK fasta
+process Pull_Genbank { 
     container "quay.io/vpeddu/lava_image:latest"
 
 	// Retry on fail at most three times 
@@ -39,17 +39,10 @@ process CreateGFF_Genbank {
       val(GENBANK)
       file CONTROL_FASTQ
 	  file PULL_ENTREZ
-	  file WRITE_GFF
 
     output: 
       file "lava_ref.fasta"
-      file "consensus.fasta"
-      file "lava_ref.gff"
 	  file "CONTROL.fastq"
-	  file "ribosomal_start.txt"
-	  file "mat_peptides.txt"
-      file "consensus.fasta"
-      file "lava_ref.gff"
 
     script:
     """
@@ -59,21 +52,8 @@ process CreateGFF_Genbank {
 	echo ${CONTROL_FASTQ}
     
 	python3 ${PULL_ENTREZ} ${GENBANK}
-	# Indexes and aligns "Sample 0" fastq to reference fasta
-    /usr/local/miniconda/bin/bwa index lava_ref.fasta
-    /usr/local/miniconda/bin/bwa mem -t ${task.cpus} -M lava_ref.fasta ${CONTROL_FASTQ} | /usr/local/miniconda/bin/samtools view -Sb - > aln.bam
-	# Generates new consensus fasta from aligned "Sample 0" and reference fasta.
-	/usr/local/miniconda/bin/samtools sort -@ ${task.cpus} aln.bam -o aln.sorted.bam 
-    /usr/local/miniconda/bin/bcftools mpileup --max-depth 500000 -P 1.1e-100 -Ou -f lava_ref.fasta aln.sorted.bam | /usr/local/miniconda/bin/bcftools call -m -Oz -o calls.vcf.gz 
-    /usr/local/miniconda/bin/tabix calls.vcf.gz
-    gunzip calls.vcf.gz 
-    /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0)' calls.vcf -o calls2.vcf
-    /usr/local/miniconda/bin/bgzip calls2.vcf
-    /usr/local/miniconda/bin/tabix calls2.vcf.gz 
-    cat lava_ref.fasta | /usr/local/miniconda/bin/bcftools consensus calls2.vcf.gz > consensus.fasta
-	python3 ${WRITE_GFF}
-	 # Avoiding filename collision during run_pipeline process 
-	 mv ${CONTROL_FASTQ} CONTROL.fastq
+	# Avoiding filename collision during run_pipeline process 
+	mv ${CONTROL_FASTQ} CONTROL.fastq
     """
 }
 
@@ -132,7 +112,6 @@ process CreateGFF {
 
     output: 
       file "lava_ref.fasta"
-      file "consensus.fasta"
       file "lava_ref.gff"
 	  file "CONTROL.fastq"
 	  file "ribosomal_start.txt"
@@ -148,25 +127,138 @@ process CreateGFF {
 	grep -v "mature_peptide" ${GFF} > lava_ref.gff
 	grep "mature_peptide" ${GFF} | sed "s/,mature_peptide//g" > mat_peptides.txt
 	mv ${FASTA} lava_ref.fasta
-	#mv ${GFF} lava_ref.gff
-	#Creates empty txt file
 	touch ribosomal_start.txt
-	#touch mat_peptides.txt
-	cp lava_ref.fasta consensus.fasta
-	# Indexes and aligns "Sample 0" fastq to reference fasta
-    /usr/local/miniconda/bin/bwa index lava_ref.fasta
-    /usr/local/miniconda/bin/bwa mem -t ${task.cpus} -M lava_ref.fasta ${CONTROL_FASTQ} | /usr/local/miniconda/bin/samtools view -Sb - > aln.bam
-	# Generates new consensus fasta from aligned "Sample 0" and reference fasta.
-	/usr/local/miniconda/bin/samtools sort -@ ${task.cpus} aln.bam -o aln.sorted.bam 
-    /usr/local/miniconda/bin/bcftools mpileup --max-depth 500000 -P 1.1e-100 -Ou -f lava_ref.fasta aln.sorted.bam | /usr/local/miniconda/bin/bcftools call -m -Oz -o calls.vcf.gz 
-    /usr/local/miniconda/bin/tabix calls.vcf.gz
-    gunzip calls.vcf.gz 
-    /usr/local/miniconda/bin/bcftools filter -i '(DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0)' calls.vcf -o calls2.vcf
-    /usr/local/miniconda/bin/bgzip calls2.vcf
-    /usr/local/miniconda/bin/tabix calls2.vcf.gz 
-    cat lava_ref.fasta | /usr/local/miniconda/bin/bcftools consensus calls2.vcf.gz > consensus.fasta
-	 # Avoiding filename collision during run_pipeline process 
+	
+	# Avoiding filename collision during run_pipeline process 
 	 mv ${CONTROL_FASTQ} CONTROL.fastq
+    """
+}
+
+process Align_first_sample {
+	container "quay.io/biocontainers/bbmap:38.86--h1296035_0"
+
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+	file CONTROL_FASTQ
+	file "lava_ref.fasta"
+
+	output: 
+	file "CONTROL.bam"
+
+	shell:
+	'''
+	#!/bin/bash
+
+	# Align each sample to consensus fasta.
+	/usr/local/bin/bbmap.sh in=!{CONTROL_FASTQ} outm=CONTROL.bam ref=lava_ref.fasta local=true -Xmx6g
+	'''
+}
+
+process Process_first_sample {
+	container "quay.io/vpeddu/lava_image:latest"
+
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+	file "CONTROL.bam"
+	file VCFUTILS
+	file "lava_ref.fasta"
+
+	output:
+	tuple file("CONTROL.vcf.gz"), file("CONTROL.vcf.gz.tbi")
+	file "lava_ref.fasta.fai"
+
+	shell:
+	'''
+	#!/bin/bash
+	/usr/local/miniconda/bin/samtools faidx lava_ref.fasta
+	/usr/local/miniconda/bin/samtools sort -@ !{task.cpus} CONTROL.bam > CONTROL.sorted.bam
+    /usr/local/miniconda/bin/samtools index CONTROL.sorted.bam
+
+	# Unwrap fasta
+	awk '/^>/ { print (NR==1 ? "" : RS) $0; next } { printf "%s", $0 } END { printf RS }' lava_ref.fasta > a.tmp && mv a.tmp lava_ref.fasta
+
+	splitnum=$(($(($(tail -n +2 lava_ref.fasta | awk '{print length}')/!{task.cpus}))+1))
+	# Generates pileup that VCF can be called off of later.
+	perl !{VCFUTILS} splitchr -l $splitnum lava_ref.fasta.fai | \\
+            xargs -I {} -n 1 -P !{task.cpus} sh -c \\
+                "/usr/local/miniconda/bin/bcftools mpileup \\
+                    -f lava_ref.fasta -r {} \\
+                    --count-orphans \\
+                    --no-BAQ \\
+                    --max-depth 50000 \\
+                    --max-idepth 500000 \\
+                    --annotate FORMAT/AD,FORMAT/ADF,FORMAT/ADR,FORMAT/DP,FORMAT/SP,INFO/AD,INFO/ADF,INFO/ADR \\
+                CONTROL.sorted.bam | /usr/local/miniconda/bin/bcftools call -A -m -Oz - > tmp.{}.vcf.gz"
+        
+        # Concatenate parallelized vcfs back together
+        gunzip tmp*vcf.gz
+        mv tmp.*\\:1-* CONTROL_catted.vcf
+        for file in tmp*.vcf; do grep -v "#" $file >> CONTROL_catted.vcf; done
+
+        cat CONTROL_catted.vcf | awk '$1 ~ /^#/ {print $0;next} {print $0 | "sort -k1,1 -k2,2n"}' | /usr/local/miniconda/bin/bcftools norm -m -any > CONTROL_pre_bcftools.vcf
+		/usr/local/miniconda/bin/bcftools filter -i 'IMF > 0.5 || (DP4[0]+DP4[1]) < (DP4[2]+DP4[3]) && ((DP4[2]+DP4[3]) > 0)' --threads !{task.cpus} CONTROL_pre_bcftools.vcf -o CONTROL_pre2.vcf
+        /usr/local/miniconda/bin/bcftools norm --check-ref s --fasta-ref lava_ref.fasta -Ov CONTROL_pre2.vcf > CONTROL_pre3.vcf
+
+		# pull out header
+        grep "#" CONTROL_pre3.vcf > CONTROL.vcf
+        # get rid of long sgRNAs that are called due to fake depths
+        grep -v "#" CONTROL_pre3.vcf | awk -F'\t' 'length($4) <60 { print }' >> CONTROL.vcf
+
+        # Index and generate consensus from vcf with majority variants
+        /usr/local/miniconda/bin/bgzip CONTROL.vcf
+        /usr/local/miniconda/bin/tabix CONTROL.vcf.gz
+
+	'''
+}
+
+// Generate final consensus from first sample vcf.
+process Generate_consensus {
+    container "quay.io/biocontainers/bcftools:1.14--hde04aa1_1"
+
+	// Retry on fail at most three times 
+    errorStrategy 'retry'
+    maxRetries 3
+
+    input:
+        tuple file("CONTROL.vcf.gz"), file("CONTROL.vcf.gz.tbi")
+		file "lava_ref.fasta"
+		file "lava_ref.fasta.fai"
+    output:
+        file "consensus.fasta"
+
+    script:
+    """
+        cat lava_ref.fasta | /usr/local/bin/bcftools consensus CONTROL.vcf.gz > consensus.fasta
+    """
+}
+
+// Uses accession number specified by --GENBANK to create our own GFF
+process CreateGFF_Genbank { 
+    container "quay.io/vpeddu/lava_image:latest"
+
+	// Retry on fail at most three times 
+    errorStrategy 'retry'
+    maxRetries 1
+	
+    input:
+      file "consensus.fasta"
+	  file WRITE_GFF
+
+    output: 
+      file "lava_ref.gff"
+	  file "ribosomal_start.txt"
+	  file "mat_peptides.txt"
+
+    script:
+    """
+    #!/bin/bash
+    
+	set -e 
+	python3 ${WRITE_GFF}
     """
 }
 
@@ -201,6 +293,10 @@ process Alignment_prep {
     script:
     """
     #!/bin/bash
+
+	# Unwrap fasta
+	awk '/^>/ { print (NR==1 ? "" : RS) \$0; next } { printf "%s", \$0 } END { printf RS }' consensus.fasta > a.tmp && mv a.tmp consensus.fasta
+	
 	# Preparatory steps for Annovar downstream
 	gff3ToGenePred lava_ref.gff AT_refGene.txt -warnAndContinue -useName -allowMinimalGenes
 	retrieve_seq_from_fasta.pl --format refGene --seqfile consensus.fasta AT_refGene.txt --out AT_refGeneMrna.fa 

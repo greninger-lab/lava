@@ -15,7 +15,9 @@ import numpy as np
 
 def correct_deletions(df, group_to_correct, correct_depth):
 	for row_num, row in (group_to_correct[group_to_correct['Depth'] <= 0.4* correct_depth]).iterrows():
+		#print(row)
 		df.at[row_num,'Depth'] = correct_depth
+		# print(df.at[row_num,'Depth'])
 		#df.at[row_num,'AF'] = row['VCOV'] / correct_depth
 	return df 
 
@@ -251,7 +253,6 @@ if __name__ == '__main__':
 	with open("filtered_variants.txt") as f:
 		for row in f:
 			line = row.rstrip()
-			print(row)
 			# Finds the nucleotide and amino acid numbers that need to be changed.
 			# Formatting is different for deletions because of extra 'del.'
 			type = line.split(',')[-2]
@@ -288,7 +289,6 @@ if __name__ == '__main__':
 					# Writes full mature peptide annotation.
 					mat_peptide = mat_name + "," + str(mat_aa_num) + "," + amino_ref + "," + amino_alt
 					mat_peptide2 = mat_name
-					print(mat_peptide)
 
 			if (line.split(",")[1]=="ORF1ab_polyprotein_ribosomal_slippage"):
 				gene_name = "ORF1ab_polyprotein"
@@ -338,6 +338,7 @@ if __name__ == '__main__':
 			
 			# Here we protect against whole amino acid deletions, such as the spike 143-144 deletion
 			if "-" in group['AASUB'].unique():
+				group = group.sort_values(by=['VCOV'], ascending=False)
 				max_depth = max(group['Depth'])
 				real_depth = group[group['AASUB']=="-"]['Depth'].values[0]
 				if real_depth == max_depth:
@@ -376,7 +377,7 @@ if __name__ == '__main__':
 
 				# Ok we're done filtering... now the actual complex mutation part
 				if list_to_combine.shape[0] > 1:
-					print(list_to_combine)
+					# print(list_to_combine)
 					# Grab relevant gene info
 					rel_gene = gene_info.loc[gene_info['gene_name'] == name[0]]
 
@@ -391,7 +392,6 @@ if __name__ == '__main__':
 					aa_nts = rel_gene['nt_seq'].values[0][nt_pos_in_gene-3:nt_pos_in_gene]
 					
 					# Grab new changes
-					print(aa_nts)
 					new_nts = find_new_nts(aa_nts,(list(list_to_combine["NucleotideChange"])), first_nt_pos)
 					new_aa = translate(new_nts)
 					new_snpid = aa_nts + str(first_nt_pos) + new_nts 
@@ -408,7 +408,7 @@ if __name__ == '__main__':
 					for i in range(1,list_to_combine.shape[0]):
 						df = df.drop([list_to_combine.iloc[i].name], errors = "ignore")
 					
-					print(df.loc[row_to_change])
+					# print(df.loc[row_to_change])
 					#print(df.loc[df['AAPOS']==name[1]])
 
 	df['AF'] = df['AF'] * 100

@@ -91,8 +91,12 @@ if(params.RAVA=='false') {
 
 include { CreateGff_Genbank_RAVA }from './Modules.nf'
 include { CreateGff_RAVA } from './Modules.nf'
+include { Pull_Genbank } from './Modules.nf'
 include { CreateGFF_Genbank }from './Modules.nf'
 include { CreateGFF } from './Modules.nf'
+include { Align_first_sample } from './Modules.nf'
+include { Process_first_sample } from './Modules.nf'
+include { Generate_consensus } from './Modules.nf'
 include { Alignment_prep } from './Modules.nf'
 include { Align_samples } from './Modules.nf' 
 include { Process_samples } from './Modules.nf' 
@@ -168,106 +172,80 @@ Channel
 workflow {
     log.info nfcoreHeader()
 
-    // If we are running with --RAVA
+    // First few steps, if we are running with --RAVA
     if(params.RAVA != 'false') {
+        // Running with --GENBANK option
         if(params.FASTA == "NO_FILE") {
-        CreateGff_Genbank_RAVA ( 
-            params.GENBANK,
-            PULL_ENTREZ,
-            WRITE_GFF
-        )
-        
-        Alignment_prep ( 
-            CreateGff_Genbank_RAVA.out[0],
-            CreateGff_Genbank_RAVA.out[1],
-            CreateGff_Genbank_RAVA.out[2],
-            CreateGff_Genbank_RAVA.out[3],
-            CreateGff_Genbank_RAVA.out[4]
-        )   
-    }
-    else {
-        CreateGff_RAVA ( 
-            params.GENBANK,
-            PULL_ENTREZ,
-            WRITE_GFF,
-            file(params.FASTA),
-            file(params.GFF)
-        )
-        
-        Alignment_prep ( 
-            CreateGff_RAVA.out[0],
-            CreateGff_RAVA.out[1],
-            CreateGff_RAVA.out[2],
-            CreateGff_RAVA.out[3],
-            CreateGff_RAVA.out[4]
-        )   
-    }
-
-        Align_samples ( 
-            input_read_ch,
-            Alignment_prep.out[0],            
-        )
-
-        Process_samples (
-            Align_samples.out[0],
-            VCFUTILS,
-            Alignment_prep.out[1],
-            Alignment_prep.out[2],
-            Alignment_prep.out[0]
-        )
-
-        Pipeline_prep ( 
-            Align_samples.out[0].collect(),
-            Alignment_prep.out[3],
-            Alignment_prep.out[0],
-            INITIALIZE_PROTEINS_CSV
-        )
-
-        Extract_variants ( 
-            Process_samples.out[3],
-            METADATA_FILE,
-            Alignment_prep.out[2],
-            Alignment_prep.out[4],
-            Pipeline_prep.out[1],
-            FIX_VARIANTS_FILE,
-            Alignment_prep.out[5],
-            MAT_PEPTIDE_ADDITION
-        )
-
-        Generate_output( 
-            Extract_variants.out[2].collect(),
-            Extract_variants.out[3].collect(),
-            Extract_variants.out[4].collect(),
-            Pipeline_prep.out[0],
-            Pipeline_prep.out[1],
-            Process_samples.out[1].collect(),
-            Process_samples.out[4].collect(),
-            GENOME_PROTEIN_PLOTS,
-            PALETTE,
-            Alignment_prep.out[5],
-            MAT_PEPTIDE_ADDITION,
-            METADATA_FILE,
-            params.TITLE
-        )
-    }
-    // If we are running on LAVA mode
-    else {
-        if(params.FASTA == 'false') {
-            CreateGFF_Genbank ( 
-                params.GENBANK, 
-                CONTROL_FASTQ,
+            CreateGff_Genbank_RAVA ( 
+                params.GENBANK,
                 PULL_ENTREZ,
                 WRITE_GFF
             )
+            
             Alignment_prep ( 
-                CreateGFF_Genbank.out[0],
-                CreateGFF_Genbank.out[1],
-                CreateGFF_Genbank.out[2],
-                CreateGFF_Genbank.out[4],
-                CreateGFF_Genbank.out[5]
-            )
-
+                CreateGff_Genbank_RAVA.out[0],
+                CreateGff_Genbank_RAVA.out[1],
+                CreateGff_Genbank_RAVA.out[2],
+                CreateGff_Genbank_RAVA.out[3],
+                CreateGff_Genbank_RAVA.out[4]
+            )   
         }
+        // Running with --FASTA, --GFF option
+        else {
+            CreateGff_RAVA ( 
+                params.GENBANK,
+                PULL_ENTREZ,
+                WRITE_GFF,
+                file(params.FASTA),
+                file(params.GFF)
+            )
+            
+            Alignment_prep ( 
+                CreateGff_RAVA.out[0],
+                CreateGff_RAVA.out[1],
+                CreateGff_RAVA.out[2],
+                CreateGff_RAVA.out[3],
+                CreateGff_RAVA.out[4]
+            )   
+        }
+    }
+    
+    // First few steps, if we are running on LAVA mode
+    else {
+        // Running with --GENBANK
+        if(params.FASTA == 'NO_FILE') {
+            Pull_Genbank (
+                params.GENBANK,
+                CONTROL_FASTQ,
+                PULL_ENTREZ
+            )
+            Align_first_sample (
+                CONTROL_FASTQ,
+                Pull_Genbank.out[0]
+            )
+            Process_first_sample (
+                Align_first_sample.out[0],
+                VCFUTILS,
+                Pull_Genbank.out[0]
+            )
+            Generate_consensus (
+                Process_first_sample.out[0],
+                Pull_Genbank.out[0],
+                Process_first_sample.out[1]
+            )
+            CreateGFF_Genbank (
+                Generate_consensus.out[0],
+                WRITE_GFF
+            )
+            Alignment_prep ( 
+                Pull_Genbank.out[0], //lava_ref.fasta
+                Generate_consensus.out[0], //consensus.fasta
+                CreateGFF_Genbank.out[0], //lava_ref.gff
+                CreateGFF_Genbank.out[1], //ribosomal_start.txt
+                CreateGFF_Genbank.out[2] //mat_peptides.txt
+            )
+        }
+        // Running with --FASTA, --GFF
         else {
             CreateGFF ( 
                 params.GENBANK, 
@@ -277,16 +255,77 @@ workflow {
                 file(params.FASTA),
                 file(params.GFF)
             )
-
-            Alignment_prep ( 
+            Align_first_sample (
+                CONTROL_FASTQ,
+                CreateGFF.out[0]
+            )
+            Process_first_sample (
+                Align_first_sample.out[0],
+                VCFUTILS,
+                CreateGFF.out[0]
+            )
+            Generate_consensus (
+                Process_first_sample.out[0],
                 CreateGFF.out[0],
-                CreateGFF.out[1],
-                CreateGFF.out[2],
-                CreateGFF.out[4],
-                CreateGFF.out[5]
+                Process_first_sample.out[1]
+            )
+            Alignment_prep ( 
+                CreateGFF.out[0], //lava_ref.fasta
+                Generate_consensus.out[0], //consensus.fasta
+                CreateGFF.out[1], //lava_ref.gff
+                CreateGFF.out[3], //ribosomal_start.txt
+                CreateGFF.out[4] //mat_peptides.txt
             )
         }
     }
+
+    Align_samples ( 
+        input_read_ch,
+        Alignment_prep.out[0],            
+    )
+
+    Process_samples (
+        Align_samples.out[0],
+        VCFUTILS,
+        Alignment_prep.out[1],
+        Alignment_prep.out[2],
+        Alignment_prep.out[0]
+    )
+
+    Pipeline_prep ( 
+        Align_samples.out[0].collect(),
+        Alignment_prep.out[3],
+        Alignment_prep.out[0],
+        INITIALIZE_PROTEINS_CSV
+    )
+
+    Extract_variants ( 
+        Process_samples.out[3],
+        METADATA_FILE,
+        Alignment_prep.out[2],
+        Alignment_prep.out[4],
+        Pipeline_prep.out[1],
+        FIX_VARIANTS_FILE,
+        Alignment_prep.out[5],
+        MAT_PEPTIDE_ADDITION
+    )
+
+    Generate_output( 
+        Extract_variants.out[2].collect(),
+        Extract_variants.out[3].collect(),
+        Extract_variants.out[4].collect(),
+        Pipeline_prep.out[0],
+        Pipeline_prep.out[1],
+        Process_samples.out[1].collect(),
+        Process_samples.out[4].collect(),
+        GENOME_PROTEIN_PLOTS,
+        PALETTE,
+        Alignment_prep.out[5],
+        MAT_PEPTIDE_ADDITION,
+        METADATA_FILE,
+        params.TITLE
+    )
+    
 }
 
 def nfcoreHeader() {

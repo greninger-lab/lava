@@ -354,6 +354,8 @@ if __name__ == '__main__':
 		filtered_group = group.loc[group['AF'] >= 0.05]
 		filtered_group = filtered_group.loc[group['AASUB']!= "-"]
 		filtered_group = filtered_group.loc[group['AASUB']!= "fs"]
+		filtered_group = filtered_group.loc[~(filtered_group.AASUB.str.len()==1)]
+		
 		if filtered_group.shape[0] > 1:
 			filtered_group = filtered_group.sort_values(['AF'], ascending=False)
 			for i in range(len(filtered_group.index) - 1):

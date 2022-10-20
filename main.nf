@@ -9,9 +9,13 @@ https://github.com/greninger-lab/lava
 ----------------------------------------------------------------------------------------
 */
 
-// Using the Nextflow DSL-2 to account for the logic flow of this workflow
-nextflow.preview.dsl=2
-
+// DSL2 enable syntax depending on different nextflow version
+nextflow_dsl2_v = '20.07.1'
+if ( nextflow.version.matches(">= $nextflow_dsl2_v") ) {
+    nextflow.enable.dsl=2
+} else {
+    nextflow.preview.dsl=2
+}
 
 def helpMessage() {
     log.info"""

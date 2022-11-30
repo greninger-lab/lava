@@ -89,7 +89,7 @@ def configurePlot(g):
 
 # Callback for the sliders and the checkboxes for non/synonymous mutations.
 # Goes through data and selects/pushes the data with the matching criteria.
-def sliderCallback(ref_source, source, slider, slider_af,  syngroup, muts):
+def sliderCallback(ref_source, source, slider, slider_af, syngroup, muts):
 	return CustomJS(args=dict(ref=ref_source, depth_sample=source, slider=slider, slider_af=slider_af, checkbox=syngroup, muts=unique_longitudinal_muts), code = """
 		let depth = slider.value;
 		let af = slider_af.value;
@@ -173,7 +173,7 @@ def sliderCallback(ref_source, source, slider, slider_af,  syngroup, muts):
 	""")
 
 # Second slider callback so that manual depth input overrides the slider.
-def sliderCallback2(ref_source, source, slider, slider_af,  syngroup, ose, muts):
+def sliderCallback2(ref_source, source, slider, slider_af, syngroup, ose, muts):
 		return CustomJS(args=dict(ref=ref_source, depth_sample=source, slider=slider, slider_af=slider_af, checkbox=syngroup, ose=ose, muts=unique_longitudinal_muts), code = """
 			let depth = Number(ose.value);
 			let af = slider_af.value;
@@ -280,54 +280,25 @@ if __name__ == '__main__':
 
 	# Reads data from LAVA output.
 	merged = pd.read_csv(args.merged,index_col=False)
-
-	#combine proteins that overlap Carlos fix
-
-	merged2 = merged
-
-	dupCheck = merged2[merged2.duplicated(subset=['Position','Sample', 'NucCorrect','AminoCorrect'], keep = False)]
-
-	merged2 = merged2.drop_duplicates(subset=['Position','Sample', 'NucCorrect','AminoCorrect'], keep = False)
-
-	dupCheck = dupCheck.groupby(['Sample','Position','AF','Change','NucleotideChange', 'LetterChange', 'Syn','Depth','Passage','NucCorrect','AminoCorrect','MatPeptide'], as_index = False).agg({'Protein': ' '.join})
-
-	dupCheck = dupCheck[['Sample', 'Protein','Position', 'AF','Change', 'Protein', 'NucleotideChange', 'LetterChange', 'Syn','Depth','Passage','NucCorrect','AminoCorrect','MatPeptide']]
-
-	dupCheck.columns.values[1] = "Amino Acid Change"
-
-	merged2 = pd.concat([merged2, dupCheck], ignore_index=True, sort=False)
-
 	proteins = pd.read_csv(args.proteins,index_col=False,header=None)
 	reads = pd.read_csv(args.reads, index_col=False, names = ["Sample", "Total", "Mapped", "Percentage"])
 
-	#Carlos Fix to remove duplicate categories for ribosomal slippage
-	for i in range (len(proteins.index)):
-	    j = i
-	    for j in range(len(proteins.index)):
-	        if((proteins.iloc[i,0]) == (proteins.iloc[j,0])):
-	            proteins.iloc[i, 1] = min(proteins.iloc[i,1],proteins.iloc[j,1])
-	            proteins.iloc[i, 2] = max(proteins.iloc[i, 2], proteins.iloc[j, 2])
-	            proteins.iloc[j, 1] = min(proteins.iloc[i, 1], proteins.iloc[j, 1])
-	            proteins.iloc[j, 2] = max(proteins.iloc[i, 2], proteins.iloc[j, 2])
-
-	proteins = proteins.drop_duplicates()
-
 	# Reads in mature peptides locations
-	if(os.stat("mat_peptides_additions.txt").st_size!=0):
-		mat_peptides_list = pd.read_csv("mat_peptides_additions.txt",index_col=False,header=None)
+	if(os.stat("/Users/administrator/Desktop/lava-master_2_CDV_Only/work/af/7985625641c7ee06914c4a3fcf9eca/mat_peptides_additions.txt").st_size!=0):
+		mat_peptides_list = pd.read_csv("/Users/administrator/Desktop/lava-master_2_CDV_Only/work/af/7985625641c7ee06914c4a3fcf9eca/mat_peptides_additions.txt",index_col=False,header=None)
 
-	source = ColumnDataSource(merged2)
+	source = ColumnDataSource(merged)
 	list_tabs = []
 	list2_tabs = []
 	list_plots = []
 	list2_plots = []
 
-	num_samples = merged2.Sample.nunique()
-	unique_samples = merged2.Sample.unique()
-	unique_samples = np.sort(merged2.Sample.unique())
+	num_samples = merged.Sample.nunique()
+	unique_samples = merged.Sample.unique()
+	unique_samples = np.sort(merged.Sample.unique())
 	if not args.categorical:
-		num_Passages = merged2['Passage'].max()
-	unique_passages = merged2.Passage.unique()
+		num_Passages = merged['Passage'].max()
+	unique_passages = merged.Passage.unique()
 	protein_names = []
 
 	user_af = -123
@@ -340,8 +311,7 @@ if __name__ == '__main__':
 		("Nucleotide Change", "@NucCorrect"),
 		("Allele Frequency", "@AF"+"%"),
 		("Depth", "@Depth"),
-		("Mature Peptide Change", "@MatPeptide"),
-		("Protein", "@Protein")
+		("Mature Peptide Change", "@MatPeptide")
 	]
 	FIRST = True
 
@@ -351,8 +321,8 @@ if __name__ == '__main__':
 	# navigation between samples on the top. Mutations are color-coded by type (synonymous, nonsynonymous, stopgain/loss, or complex.)
 	# To the side, genome coverage is plotted and read mapping information is given.
 	# Depth and allele frequency cutoffs can be specified by sliders to the side.
-	for sample_name, merged2_Sample in merged2.groupby('Sample', sort=False):
-		sample = merged2_Sample
+	for sample_name, merged_Sample in merged.groupby('Sample', sort=False):
+		sample = merged_Sample
 		name = sample_name
 		syn_factors = ['nonsynonymous SNV', 'synonymous SNV', 'complex', 'stopgain', 'stoploss']
 
@@ -361,10 +331,10 @@ if __name__ == '__main__':
 		name_from_passage = name_from_passage.split('.fastq.gz')[0]
 		name_from_passage = name_from_passage.split('.fastq')[0]
 
-		if args.categorical:
-			name_from_passage = merged2.loc[merged2['Sample']==sample_name].iloc[0]
-			name_from_passage = name_from_passage['Passage']
-			name_from_passage = name_from_passage.replace('_',' ')
+		# if args.categorical:
+		# 	name_from_passage = merged.loc[merged['Sample']==sample_name].iloc[0]
+		# 	name_from_passage = name_from_passage['Passage']
+		# 	name_from_passage = name_from_passage.replace('_',' ')
 
 		# Plot per base coverage for each sample as a subplot to the side.
 		coverage = pd.read_csv(sample_name.strip() + '.genomecov', names=["sample", 'position', 'cov'], header=0, sep='\t')
@@ -372,42 +342,13 @@ if __name__ == '__main__':
 		cov_sample.data['position'].astype(float)
 		cov_val_sample = ColumnDataSource(data=cov_sample.data)
 
-		#Carlos VCF Coverage Plots
-		CoverageVCF = pd.read_csv(sample_name.strip() + '.vcf',index_col=False, skiprows=[i for i in range(0,18)], sep='\t', header=None)
-		CoverageVCF.columns = CoverageVCF.columns.map(str)
-		NewCoverageVCF = pd.DataFrame(columns=['sample', 'position', 'cov'])
-		NewCoverageVCF['sample'] = CoverageVCF['0'].values
-		NewCoverageVCF['position'] = CoverageVCF['1'].values
-		NewCoverageVCF['cov'] = CoverageVCF['10'].values
-		NewCoverageVCF["cov"] = NewCoverageVCF["cov"].str.split(":").str[2]
-
-		cov_sample2 = ColumnDataSource(NewCoverageVCF)
-		cov_sample2.data['position'].astype(float)
-		cov_val_sample2 = ColumnDataSource(data=cov_sample2.data)
-
-		#genome_plot = figure(plot_width=1600, plot_height=800, y_range=DataRange1d(bounds=(0,102), start=0,end=102),
-		#	title=name_from_passage, sizing_mode = 'scale_width',
-		#	x_range=DataRange1d(bounds=(0, proteins.iloc[proteins.shape[0]-1,2]), start=0, end=proteins.iloc[proteins.shape[0]-1,2]))
-
 		cov_graph = figure(plot_width=400, plot_height=200, title='Coverage')
-		#x_range=DataRange1d(bounds=(0, proteins.iloc[proteins.shape[0]-1,2]), start=0, end=proteins.iloc[proteins.shape[0]-1,2])
-
-
-		cov_graph.line(x='position', y='cov',source=cov_val_sample, color='blue', legend_label= 'genomecov')
-		cov_graph.line(x='position', y='cov',source=cov_val_sample2, color='red', legend_label= 'VCF')
+		cov_graph.line(x='position', y='cov',source=cov_val_sample)
 
 		# Initializes sample data.
-		source_sample = ColumnDataSource(merged2_Sample)
+		source_sample = ColumnDataSource(merged_Sample)
 		source_sample.data['Position'].astype(float)
 		depth_sample = ColumnDataSource(data=source_sample.data)
-
-		#
-
-		#Jitter Slider
-		#slider_JT = Slider(start=0, end=100, step=1, value=2, title='Jitter')
-
-		#JT_amount = slider_JT.value
-		JT_amount = 2
 
 		# Creates a graph with x-axis being genome length (based on protein csv).
 		## Took out active_scroll = "wheel_zoom" -RCS
@@ -417,32 +358,18 @@ if __name__ == '__main__':
 
 		# Plots by nucleotide letter change.
 		if(args.nuc):
-			genome_plot.circle(x='Position', y=jitter('AF', width= JT_amount, range=genome_plot.y_range), size=15, alpha=0.6, hover_alpha=1,
+			genome_plot.circle(x='Position', y=jitter('AF', width=2, range=genome_plot.y_range), size=15, alpha=0.6, hover_alpha=1,
 				legend = 'LetterChange', line_color='white', line_width=2, line_alpha=1,
-				fill_color=factor_cmap('LetterChange', palette=color_palette, factors=merged2.LetterChange.unique()),
-				hover_color=factor_cmap('LetterChange', palette=color_palette, factors=merged2.LetterChange.unique()),
+				fill_color=factor_cmap('LetterChange', palette=color_palette, factors=merged.LetterChange.unique()),
+				hover_color=factor_cmap('LetterChange', palette=color_palette, factors=merged.LetterChange.unique()),
 				source=depth_sample, hover_line_color='white')
-
-		# if(args.nuc):
-		# 	genome_plot.circle(x='Position', y=jitter('AF', width=2, range=genome_plot.y_range), size=15, alpha=0.6, hover_alpha=1,
-		# 		legend = 'LetterChange', line_color='white', line_width=2, line_alpha=1,
-		# 		fill_color=factor_cmap('LetterChange', palette=color_palette, factors=merged2.LetterChange.unique()),
-		# 		hover_color=factor_cmap('LetterChange', palette=color_palette, factors=merged2.LetterChange.unique()),
-		# 		source=depth_sample, hover_line_color='white')
-
 		# Plots by amino acid change type.
 		else:
-			genome_plot.circle(x='Position', y=jitter('AF', width= JT_amount, range=genome_plot.y_range), size=15, alpha=0.6, hover_alpha=1,
+			genome_plot.circle(x='Position', y=jitter('AF', width=2, range=genome_plot.y_range), size=15, alpha=0.6, hover_alpha=1,
 				legend = 'Syn', line_color='white', line_width=2, line_alpha=1,
 				fill_color=factor_cmap('Syn', palette=['firebrick', 'cornflowerblue', 'green', 'purple', 'yellow'], factors=syn_factors),
 				hover_color=factor_cmap('Syn', palette=['firebrick', 'cornflowerblue', 'green', 'purple', 'yellow'], factors=syn_factors),
 				source=depth_sample, hover_line_color='white')
-
-			# genome_plot.circle(x='Position', y=jitter('AF', width=2, range=genome_plot.y_range), size=15, alpha=0.6, hover_alpha=1,
-			# 	legend = 'Syn', line_color='white', line_width=2, line_alpha=1,
-			# 	fill_color=factor_cmap('Syn', palette=['firebrick', 'cornflowerblue', 'green', 'purple', 'yellow'], factors=syn_factors),
-			# 	hover_color=factor_cmap('Syn', palette=['firebrick', 'cornflowerblue', 'green', 'purple', 'yellow'], factors=syn_factors),
-			# 	source=depth_sample, hover_line_color='white')
 
 		# Sets up visualization and hover tool.
 		genome_plot.add_tools(HoverTool(tooltips=TOOLTIPS))
@@ -470,25 +397,22 @@ if __name__ == '__main__':
 			"Show stopgains and stoplosses", "Show complex mutations", "Show mutations without longitudinal data"], active=[0,1,2,3,4])
 
 		# Grabs the mutations that occur multiple times across samples.
-		longitudinal_muts = merged2_Sample[merged2_Sample.duplicated('Change', keep=False)]
+		longitudinal_muts = merged_Sample[merged_Sample.duplicated('Change', keep=False)]
 		unique_longitudinal_muts = longitudinal_muts.Change.unique()
 
 		# Initializes and filters data based on slider values.
-		slider = Slider(start=0, end=merged2['Depth'].max(), step=1, value=2, title='Depth Cutoff')
+		slider = Slider(start=0, end=merged['Depth'].max(), step=1, value=2, title='Depth Cutoff')
 		slider_af = Slider(start=0, end=100, step=1, value=1, title='Allele Frequency Cutoff')
-
-		#slider_JT.js_on_change('value', sliderCallback(source_sample, depth_sample, slider, slider_af,  syngroup, unique_longitudinal_muts))
-
-		slider_af.js_on_change('value', sliderCallback(source_sample, depth_sample, slider, slider_af, syngroup, unique_longitudinal_muts))
-		slider.js_on_change('value', sliderCallback(source_sample, depth_sample, slider, slider_af,  syngroup, unique_longitudinal_muts))
-		syngroup.js_on_change('active', sliderCallback(source_sample, depth_sample, slider, slider_af,  syngroup, unique_longitudinal_muts))
-		ose.js_on_change('value', sliderCallback2(source_sample, depth_sample, slider, slider_af,  syngroup, ose, unique_longitudinal_muts))
+		slider_af.js_on_change('value', sliderCallback(source_sample, depth_sample, slider, slider_af,syngroup, unique_longitudinal_muts))
+		slider.js_on_change('value', sliderCallback(source_sample, depth_sample, slider, slider_af, syngroup, unique_longitudinal_muts))
+		syngroup.js_on_change('active', sliderCallback(source_sample, depth_sample, slider, slider_af, syngroup, unique_longitudinal_muts))
+		ose.js_on_change('value', sliderCallback2(source_sample, depth_sample, slider, slider_af, syngroup, ose, unique_longitudinal_muts))
 
 		# When mousing over Bokeh plot, allele frequency updated to user input.
 		if(user_af!= -123):
 			slider_af.value = user_af
 			## g.js_on_event(events.PlotEvent, sliderCallback(source_sample, depth_sample, slider, slider_af, syngroup))
-			genome_plot.js_on_event(events.MouseEnter, sliderCallback(source_sample, depth_sample, slider, slider_af,  syngroup, unique_longitudinal_muts))
+			genome_plot.js_on_event(events.MouseEnter, sliderCallback(source_sample, depth_sample, slider, slider_af, syngroup, unique_longitudinal_muts))
 
 		# Creates labels with read information
 		reads_info = (reads.loc[reads['Sample'] == name.strip()])
@@ -497,7 +421,7 @@ if __name__ == '__main__':
 			"""+str(reads_info.iloc[0]["Percentage"])+"""</font>""", width=300, height=100)
 
 		# Plots layout of all components.
-		genome_plot = layout(row([genome_plot, column([Div(text="""""", width=300, height=220),cov_graph,ose, slider, slider_af,  syngroup, widgetbox(div),reset_button])]))
+		genome_plot = layout(row([genome_plot, column([Div(text="""""", width=300, height=220),cov_graph,ose, slider, slider_af, syngroup, widgetbox(div),reset_button])]))
 
 		# Creates both tabs and different plots for each sample.
 		tab = Panel(child=genome_plot, title=name_from_passage)
@@ -510,9 +434,9 @@ if __name__ == '__main__':
 	total_num_mutations = 0
 
 	# Sorts data by protein location.
-	merged2.Protein = merged2.Protein.astype("category")
-	merged2.Protein.cat.set_categories(protein_names, inplace=True)
-	merged2.sort_values(["Protein"])
+	merged.Protein = merged.Protein.astype("category")
+	merged.Protein.cat.set_categories(protein_names, inplace=True)
+	merged.sort_values(["Protein"])
 
 	unique_samples_cut = []
 	if args.categorical:
@@ -589,18 +513,15 @@ if __name__ == '__main__':
 		slider = Slider(start=0, end=merged['Depth'].max(), step=1, value=2, title='Depth Cutoff')
 		if(user_af != -123):
 			slider_af = Slider(start=0, end=100, step=1, value=user_af, title='Allele Frequency Cutoff')
-			#slider_JT = Slider(start=0, end=100, step=1, value=2, title='Jitter')
 		else:
 			slider_af = Slider(start=0, end=100, step=1, value=1, title='Allele Frequency Cutoff')
-			slider_JT = Slider(start=0, end=100, step=1, value=2, title='Jitter')
-		slider_JT.js_on_change('value', sliderCallback(source_sample, depth_sample, slider, slider_af,  syngroup, unique_longitudinal_muts))
-		slider.js_on_change('value', sliderCallback(source_protein, depth_sample_p, slider, slider_af,  syngroup, unique_longitudinal_muts))
-		slider_af.js_on_change('value', sliderCallback(source_protein, depth_sample_p, slider, slider_af,  syngroup, unique_longitudinal_muts))
-		syngroup.js_on_change('active', sliderCallback(source_protein, depth_sample_p, slider, slider_af,  syngroup, unique_longitudinal_muts))
-		ose.js_on_change('value', sliderCallback2(source_protein, depth_sample_p, slider, slider_af,  syngroup, ose, unique_longitudinal_muts))
+		slider.js_on_change('value', sliderCallback(source_protein, depth_sample_p, slider, slider_af,syngroup, unique_longitudinal_muts))
+		slider_af.js_on_change('value', sliderCallback(source_protein, depth_sample_p, slider, slider_af,syngroup, unique_longitudinal_muts))
+		syngroup.js_on_change('active', sliderCallback(source_protein, depth_sample_p, slider, slider_af, syngroup, unique_longitudinal_muts))
+		ose.js_on_change('value', sliderCallback2(source_protein, depth_sample_p, slider, slider_af, syngroup, ose, unique_longitudinal_muts))
 
 		# Lays out the different components.
-		protein_plot = layout(row([protein_plot, column([Div(width=100, height=260),ose,slider, slider_af,  syngroup, Div(width=100, height=30),reset_button])]))
+		protein_plot = layout(row([protein_plot, column([Div(width=100, height=260),ose,slider, slider_af, syngroup, Div(width=100, height=30),reset_button])]))
 		tab = Panel(child=protein_plot, title=name)
 		list2_tabs.append(tab)
 		list2_plots.append(protein_plot)

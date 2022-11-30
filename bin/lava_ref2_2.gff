@@ -1,0 +1,20 @@
+##gff-version 3
+##source-version geneious 9.1.7
+lava	LAVA	gene		32	1447		.	+	.	ID=gene:nucleoprotein_N;biotype=protein_coding
+lava	LAVA	CDS			32	1447		.	+	0	ID=CDS:nucleoprotein_N;Parent=transcript:nucleoprotein_N;biotype=protein_coding
+lava	LAVA	transcript	32	1447		.	+	.	ID=transcript:nucleoprotein_N;Parent=gene:nucleoprotein_N;biotype=protein_coding
+lava	LAVA	gene		1569	2258	.	+	.	ID=gene:V_protein_ribosomal_slippage;biotype=protein_coding
+lava	LAVA	CDS			1569	2258	.	+	0	ID=CDS:V_protein_ribosomal_slippage;Parent=transcript:V_protein_ribosomal_slippage;biotype=protein_coding
+lava	LAVA	transcript	1569	2258	.	+	.	ID=transcript:V_protein_ribosomal_slippage;Parent=gene:V_protein_ribosomal_slippage;biotype=protein_coding
+lava	LAVA	gene		3200	4207	.	+	.	ID=gene:matrix_protein_M;biotype=protein_coding
+lava	LAVA	CDS			3200	4207	.	+	0	ID=CDS:matrix_protein_M;Parent=transcript:matrix_protein_M;biotype=protein_coding
+lava	LAVA	transcript	3200	4207	.	+	.	ID=transcript:matrix_protein_M;Parent=gene:matrix_protein_M;biotype=protein_coding
+lava	LAVA	gene		4703	6691	.	+	.	ID=gene:fusion_protein_F;biotype=protein_coding
+lava	LAVA	CDS			4703	6691	.	+	0	ID=CDS:fusion_protein_F;Parent=transcript:fusion_protein_F;biotype=protein_coding
+lava	LAVA	transcript	4703	6691	.	+	.	ID=transcript:fusion_protein_F;Parent=gene:fusion_protein_F;biotype=protein_coding
+lava	LAVA	gene		6847	8670	.	+	.	ID=gene:hemagglutinin_protein_H;biotype=protein_coding
+lava	LAVA	CDS			6847	8670	.	+	0	ID=CDS:hemagglutinin_protein_H;Parent=transcript:hemagglutinin_protein_H;biotype=protein_coding
+lava	LAVA	transcript	6847	8670	.	+	.	ID=transcript:hemagglutinin_protein_H;Parent=gene:hemagglutinin_protein_H;biotype=protein_coding
+lava	LAVA	gene		9620	16174	.	+	.	ID=gene:large_polymerase_protein;biotype=protein_coding
+lava	LAVA	CDS			9620	16174	.	+	0	ID=CDS:large_polymerase_protein;Parent=transcript:large_polymerase_protein;biotype=protein_coding
+lava	LAVA	transcript	9620	16174	.	+	.	ID=transcript:large_polymerase_protein;Parent=gene:large_polymerase_protein;biotype=protein_coding

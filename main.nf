@@ -210,7 +210,7 @@ workflow {
                 params.GENBANK,
                 CONTROL_FASTQ,
                 PULL_ENTREZ,
-                WRITE_GFF2,
+                WRITE_GFF,
                 CreateGFF_Genbank.out[6],
                 CreateGFF_Genbank.out[7]
                 )
@@ -219,7 +219,7 @@ workflow {
                 params.GENBANK,
                 CONTROL_FASTQ,
                 PULL_ENTREZ,
-                WRITE_GFF,
+                WRITE_GFF2,
                 file(params.FASTA),
 
                 file(params.GFF)

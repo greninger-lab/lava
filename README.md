@@ -175,5 +175,10 @@ If you don't want to use the template GFF, or want to troubleshoot any problems 
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Must match the name of your .fasta reference sequence: both the first line, and the file name. | Anything in this column. | One of 3 things: gene, CDS, transcript. CDS must be in all caps. Each protein MUST have all 3 features. | Beginning position of the protein. | End position of the protein. | Only contains "." | Only contains "+". | Contains a "0" for all CDS lines, and "." for all others. | Contains ID=`feature type`, where `feature type` is one of gene, CDS, or transcript, followed by the protein name. For CDS lines, it must also contain a `Parent=transcript:` identifier, followed by the protein name. For transcript lines, it must also contain a `Parent=gene:` identifier, followed by the protein name. All lines must end with `biotype=protein_coding`. Each of these tags should be separated by semicolons.|
 
+Additional Notes (Cave42):
+This version of LAVA replaces ANNOVAR with a similarly written program to account for slippage and protein overlap, thus allowing it to work with more complex GFF files.
+The program now accepts GFF or GBK files exported from Geneious. Use --GFF for either option; LAVA will automatically sort the file based on its extension
+Running the program take the same inputs; interactive graph is virtually identical with addition protein labeling annotations added and VCF coverage graphed as well.
+
 If you experience any difficulties doing this, or have any other questions about LAVA, feel free to email us at uwvirongs@gmail.com and we'll be happy to help you out!
 

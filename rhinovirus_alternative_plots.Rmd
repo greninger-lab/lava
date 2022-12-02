@@ -1,0 +1,418 @@
+---
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = F)
+library(tidyverse)
+library(gridExtra)
+library(stringr)
+library(ggrepel)
+library(reshape2)
+library(gggenes)
+library(ggsci)
+```
+
+```{r dataread, message=FALSE, warning=FALSE, include=FALSE}
+# read visualization csv
+
+mat_peptides <- read_csv('/Users/jason/OneDrive\ -\ UW/Documents/research_projects/202105_HRV-URTvsLRT-V13/S10/lava_plots/all_files/mat_peptides_additions.txt', col_names = c("gene", "start", "end", "numb_nuc"))
+
+mat_peptides <- mat_peptides[,-4]
+
+colnames(mat_peptides)[2:3] <- c("xstart", "xend")
+
+mat_peptides$ystart <- 0
+mat_peptides$yend <- 10
+
+mat_pep_x <- melt(mat_peptides[,-(4:5)], id.vars = c('gene'), variable.name = c('xjunk'), value.name = c('x'))[,-2]
+
+mat_pep_y <- melt(mat_peptides[,-(2:3)], id.vars = c('gene'), variable.name = c('yjunk'), value.name = c('y'))[,-2]
+
+datapoly <- merge(mat_pep_x, mat_pep_y, by = c("gene"))
+
+plot_title_names <- read_csv("/Users/jason/OneDrive\ -\ UW/Documents/research_projects/202105_HRV-URTvsLRT-V13/S10/metadata_plot_names.csv")
+
+shading_text <- "Red shading indicates coverage less than 10"
+
+```
+
+```{r}
+scale_coverage <- function(x){
+  max_cov <- max(x$cov)
+  x <- x %>% mutate(percent_cov = unlist(lapply(x$cov, function(x){(x/max_cov)*100})))
+}
+```
+
+```{r}
+check_val <- function(x, y){ifelse(x<=10,y,-1)}
+```
+
+
+
+
+```{r}
+previous <- function(x){
+  x <- x %>% mutate(below_ten = ifelse(x$cov<=10, x$position,NA))
+}
+```
+
+```{r}
+read_coverage <- function(base,sample){
+  coverage = read.csv(paste0("/Users/jason/OneDrive\ -\ UW/Documents/research_projects/202105_HRV-URTvsLRT-V13/",base,"/lava_plots/genomecov/",sample,".fastq.genomecov"), sep = "\t",  header = FALSE)
+  
+  # get rid of crappy header parse, select all read info
+  coverage <- coverage[c(2:dim(coverage)[1]),]
+  # give header names
+  
+  names(coverage) <- c("samples", "position", "cov")
+  coverage$samples <- sample
+  coverage$avg <- round(mean(coverage$cov),0)
+  coverage$max <- max(coverage$cov)
+  coverage <- scale_coverage(coverage)
+  coverage$below_ten <- previous(coverage)
+}
+```
+
+```{r}
+bind_cov <- function(base,samples){
+  if (length(samples)==2){
+    cov <- rbind(read_coverage(base,samples[1]), read_coverage(base,samples[2]))
+  } else if (length(samples)==3){
+    cov <- rbind(read_coverage(base,samples[1]), read_coverage(base,samples[2]), read_coverage(base,samples[3]))
+  } else if (length(samples)==4){
+    cov <- rbind(read_coverage(base,samples[1]), read_coverage(base,samples[2]), read_coverage(base,samples[3]), read_coverage(base,samples[4]))
+  }
+}
+```
+
+```{r}
+
+get_poor_cov <- function(x){
+  y <- c(-Inf)
+  for (i in seq(1, dim(x)[1])){
+    #print(x[i,7])
+
+    if (x[i,7] ==1){
+      #print(y)
+      #print(x[i,7])
+      y <- append(y, x[i,7])
+      }
+    else if (x[i,7] != dim(x)[1] & x[i-1,7] != -1 & x[i+1,7] == -1 & x[i,7] != -1){
+      #print(y)
+      #print(x[i,7])
+      y <- append(y, x[i,7])
+      }
+    else if (x[i,7] != dim(x)[1] & x[i-1,7] == -1 & x[i+1,7] != -1 & x[i,7] != -1){
+      #print(y)
+      #print(x[i,7])
+      y <- append(y, x[i,7])
+      }
+    else if (i == dim(x)[1] & x[i,7] != -1){
+      #print(y)
+      #print(x[i,7])
+      y <- append(y, x[i,7])
+      }
+    #return(y)
+  }
+  y <- append(y,Inf)
+  return(y)
+}
+
+
+
+```
+
+
+
+```{r mybarplot, include=FALSE}
+mybarplot <- function(base, samples_order, leg_pos, cap) {
+assign(paste0('visualization_', base), read_csv(paste0('/Users/jason/OneDrive\ -\ UW/Documents/research_projects/202105_HRV-URTvsLRT-V13/',base,'/lava_plots/visualization.csv')))
+
+working_df <- get(paste0('visualization_',base))
+
+working_df$samples <- lapply(working_df$Sample, function(x){str_split_fixed(x,"\\.",2)[1]})
+
+working_df$samples <- as.character(working_df$samples)
+
+names(working_df) <- tolower(names(working_df))
+
+viz_graph <- working_df %>% filter((working_df$syn %in% c('nonsynonymous SNV', 'synonymous SNV')) & (working_df$af >= 10) & (working_df$depth > 10))
+
+viz_graph$samples <- factor(viz_graph$samples, levels = samples_order)
+
+coverage3 <- bind_cov(base,samples_order)
+
+viz_graph %>% 
+  ggplot()+
+  #geom_vline(mapping=aes(xintercept=below_ten), size=0.1, alpha=0.1, color="red", data=transform(coverage3, samples=factor(samples,levels=samples_order))) +
+  geom_segment(mapping=aes(x=below_ten,xend=below_ten,y=0,yend=100), size=0.1, alpha=0.1, color="red", data=transform(coverage3, samples=factor(samples,levels=samples_order))) +
+  geom_area(mapping = aes(x=position,y=percent_cov), alpha=0.1,fill="gray57", data=transform(coverage3, samples=factor(samples,levels=samples_order))) +
+  geom_gene_arrow(data = mat_peptides, 
+                  aes(xmin=xstart, 
+                      xmax=xend, 
+                      y=-8), 
+                  arrowhead_height = unit(3, "mm"), 
+                  arrowhead_width = unit(1.5, "mm"), 
+                  arrow_body_height = unit(3, "mm"), 
+                  show.legend = F, fill='gray57') +
+  geom_gene_label(data = mat_peptides, 
+                  aes(label=gene, 
+                      xmin=xstart, 
+                      xmax=xend, 
+                      y=-8), 
+                  align = "left",
+                  color="white")+
+  geom_point(aes(x=position, y=af, color=syn)) +
+  theme_minimal()+
+  geom_label_repel(data = viz_graph %>% filter((viz_graph$syn %in% c('nonsynonymous SNV'))), 
+                   aes(x=position, 
+                       y=af, 
+                       label=paste(change,'\n',round(af,1),"%"), 
+                       #angle=90, 
+                       color=syn), 
+            size=2,
+            show.legend = F,
+            fill = alpha(c("white"),0.5),
+            label.size = NA,
+            xlim = c(0,7100),
+            ylim = c(0,100)
+            ) +
+  geom_text(data=transform(plot_title_names[which(plot_title_names$sample == base),], samples=factor(samples,levels=samples_order)), 
+            aes(label=paste0(`Sample.Identifier`, " Day:", `Day.Collected`), 
+                x=50, 
+                y=115),
+            hjust = 0,
+            size=3.5,
+            color='gray57',
+            fontface='bold') +
+  geom_text(data=transform(coverage3, samples=factor(samples,levels=samples_order)), 
+            aes(label=paste0("Mean: ",avg,"X  -  Max: ",max, "X"), 
+                x=50, 
+                y=105),
+            hjust = 0,
+            size=3,
+            color='gray57'
+            ) +
+  geom_vline(aes(xintercept=0), color="black") +
+  geom_hline(aes(yintercept=0), color="black") +
+  facet_wrap(.~samples, ncol = 1, strip.position = "top") +
+  theme(strip.background = element_blank(), strip.placement = "inside", strip.text = element_text(hjust = 1)) +
+  labs(title = paste0(head(plot_title_names[which(plot_title_names$sample == base),],n=1)$sample, 
+                      ": HRV-",
+                      head(plot_title_names[which(plot_title_names$sample == base),],n=1)$Serotype), 
+       x = "Position", 
+       y = "Allele Frequency",
+       caption = cap) +
+  scale_color_startrek(labels = c("Non Synonymous", "Synonymous")) +
+  guides(color = guide_legend("Mutation Type:", nrow=2)) +
+  theme(
+    legend.position=leg_pos, 
+    legend.box = "horizontal", 
+    panel.grid.minor = element_blank(),
+    plot.caption = element_text(face = "italic", hjust = 0),
+    legend.title=element_text(size=8),
+    legend.text=element_text(size=7),
+    legend.margin=margin(-20, -50, 0, 0),
+    legend.spacing.x = unit(0, 'mm')) +
+  xlim(c(0,7100)) +
+  ylim(c(-10,110)) +
+  scale_y_continuous(breaks = c(0,20,40,60,80,100))}
+```
+
+
+
+
+## Figure 1
+
+### A
+
+```{r S09, message=FALSE, warning=FALSE, fig.width=10, fig.height=5.5}
+mybarplot("S09", c("SRR8356918", "SRR8356921"), "top", "")
+```
+
+
+### B
+
+
+```{r S08, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+mybarplot("S08", c("SRR8356920", "SRR8356912"), "none", shading_text)
+```
+
+\newpage
+
+## Figure 2
+
+### A
+
+```{r S07, message=FALSE, warning=FALSE, fig.width=10, fig.height=5.5}
+mybarplot("S07", c("SRR8356913", "SRR8356917"), "top", "")
+```
+
+### B
+
+```{r S05, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+mybarplot("S05", c("SRR8356919", "SRR8356908"), "none", shading_text)
+```
+
+\newpage
+
+## Figure 3
+
+### A
+
+```{r S03, message=FALSE, warning=FALSE, fig.width=10, fig.height=5.5}
+mybarplot("S03", c("SRR8356929", "SRR8356904"), "top", "")
+```
+
+
+```{r S04, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+mybarplot("S04", c("SRR8356930", "SRR8356907"), "none", shading_text)
+```
+
+\newpage
+
+## Figure 4
+
+### A
+
+
+```{r S06, message=FALSE, warning=FALSE, fig.width=10, fig.height=5.5}
+mybarplot("S06", c("SRR8356916","SRR8356905"), "top", shading_text)
+```
+
+
+### B
+
+```{r S01, message=FALSE, warning=FALSE, fig.width=10, fig.height=10.5}
+mybarplot("S01", c("SRR8356906", "SRR8356922", "SRR8356915", "SRR8356923"), "top", shading_text)
+```
+
+
+
+### C
+
+```{r S02, message=FALSE, warning=FALSE, fig.width=10, fig.height=8.0}
+mybarplot("S02", c("SRR8356909","SRR8356914","SRR8356910"), "top", shading_text)
+```
+
+\newpage
+
+## Figure 5
+
+### A
+
+```{r S10, message=FALSE, warning=FALSE, fig.width=10, fig.height=5.5}
+mybarplot("S10", c("SRR8356911", "SRR8356924"), "top", "")
+```
+
+
+### B
+
+```{r S11, message=FALSE, warning=FALSE, fig.width=10, fig.height=5}
+mybarplot("S11", c("SRR8356928", "SRR8356927"), "none", shading_text)
+```
+
+### C
+
+```{r S12, message=FALSE, warning=FALSE, fig.width=10, fig.height=5.5}
+mybarplot("S12", c("SRR8356926","SRR8356925"), "top", shading_text)
+```
+
+
+
+
+```{r}
+library(png)
+img <- readPNG("concat_all_more_alpha.png")
+
+img_df <- data.frame(passage=c(0,50,100),maf=c(10,50,100))
+```
+
+
+# Figure 6 - Crystal Structure
+
+```{r crys, fig.width=12.5,fig.height=4.2}
+img_df %>%
+  ggplot()+
+  geom_point(aes(x=passage,y=maf,fill=maf)) +
+  annotation_raster(img, xmin = -Inf, xmax = Inf , ymin = -Inf, ymax = Inf) +
+  scale_fill_gradientn(colors = c("yellow", "orange","purple"),labels=c(10,100),breaks=c(10,100),name="MAF") +
+  ylim(c(-11,100)) +
+  xlim(c(0,100)) +
+  geom_text(aes(x=0,y=-10),label="Day",color="white",size=5,hjust=1,vjust=1) +
+  geom_text(aes(x=16,y=-10),label="0",color="white",size=5,vjust=1) +
+  geom_text(aes(x=50,y=-10),label="1 - 43",color="white",size=5,vjust=1) +
+  geom_text(aes(x=84,y=-10),label="60 - 190",color="white",size=5,vjust=1) +
+  theme(
+    plot.background = element_rect(color='black', fill = "black"),
+    legend.background = element_rect(fill = "black"),
+    legend.title = element_text(color="white"),
+    legend.text = element_text(colour = "white"),
+    #legend.justification = "left",
+    legend.position = "right",
+    legend.box = "horizontal",
+    legend.key.size = unit(1, 'cm'),
+    axis.line.x = element_line(color="black"),
+    axis.text.y = element_blank(),
+    axis.line.y = element_line(color="black"),
+    axis.ticks = element_blank(),
+    axis.text.x = element_blank())
+  
+```
+
+
+
+
+
+
+
+
+
+# Figure 7 - MAFvSASA
+
+
+
+```{r}
+
+```
+
+
+
+
+# Supplemental Figure 1
+
+
+# Supplemental Figure 2
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

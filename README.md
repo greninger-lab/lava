@@ -1,3 +1,5 @@
+This is an old version of the pipeline please use https://github.com/greninger-lab/RAVA_Pipeline
+
 # LAVA: Longitudinal Analysis of Viral Alleles
 
 ![LAVA](https://github.com/vpeddu/lava/workflows/LAVA/badge.svg)
